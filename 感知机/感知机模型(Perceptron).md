@@ -45,7 +45,7 @@ $$
 
 感知机的损失函数为误分类点到超平面的总距离，首先看一个点到超平面的距离：
 $$
-\frac{1}{w}\begin{vmatrix}w*x_0+b\end{vmatrix}
+\frac{1}{||w||}\begin{vmatrix}w*x_0+b\end{vmatrix}
 $$
 点到超平面的距离公式的推导：以下面二维的图为例
 
@@ -66,3 +66,116 @@ $$
 -\frac{b}{w_1}*-\frac{b}{w_2}=-b\frac{\sqrt{w_1^2+W_2^2}}{w_1w_2}*OC
 $$
 所以$OC=-\frac{b}{\sqrt{w_1^2+W_2^2}}=-\frac{b}{||w||}$
+
+
+
+上面知道了点到超平面的距离公式，但是我们需要的是误分类到超平面的距离，书上给出了公式：
+$$
+-y(w*x_i+b)>0
+\tag{1}
+$$
+因为当$w*x+b\ge0$且被误分时，对应真实的$y=-1$，当$w*x<0$且被误分时，对应真实的$y=1$。这样就可以判断哪个点是误分类点。现在通过公式(1)，我们将所有误分类点提取出来，假设有M个误分类，下面计算M个误分类到超平面的距离：
+$$
+-y_1\frac{1}{||w||}\begin{vmatrix}w*x_1+b\end{vmatrix}-y_1\frac{1}{||w||}\begin{vmatrix}w*x_2+b\end{vmatrix}-...-y_1\frac{1}{||w||}\begin{vmatrix}w*x_M+b\end{vmatrix}=-\frac{1}{||w||}\sum_{x_i\in M}y(w*x_i+b)
+$$
+因为需要取得损失函数最小值，可以忽略常数||w||。可得其损失函数为：
+$$
+L(w,b)=-\sum_{x_i\in M}y(w*x_i+b)
+$$
+损失函数越大，说明对应的感知机模型越差，因此，我们需要一个损失函数最小的模型，接下来说明如何取得损失函数最小值。
+
+
+
+## 随机梯度下降法
+
+以图2.1为例，当w和b都为0的是后误分类点是最多的，随着w和b不断变大，误分类点先变少，再变多。就想回归函数一样，如下图。
+
+![2.2](.\images\2.2.jpg)
+
+随机梯度下降法，就是在上图上从最上的一个点开始，每次随机间隔一点，逐步的往下，直到找到最低的一个点。
+
+在感知机中使用随机梯度下降法的步骤：
+
+第一步，选取w和b的初始值分别为$w_0$，$b_0$
+
+第二步，在训练集中选取数据$(x_i,y_i)$
+
+第三步，如果$y_i(w*x_i)\le0$，则更新w和b
+$$
+w\leftarrow w+\eta y_ix_i \\
+b\leftarrow b+\eta y_i
+$$
+第四步，转到步骤二，直至没有误分类点。
+
+
+
+上代码
+
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn import datasets
+
+# 加载鸢尾花数据集
+iris = datasets.load_iris()
+df = pd.DataFrame(iris.data)
+df['label'] = iris.target
+df.columns = ['sepal_length', 'sepal_width', 'petal_length', 'petal_width', 'label']
+
+# 提取前100条数据
+data = np.array(df.iloc[0:100, [0, 1, -1]])
+# 得到x(特征向量)、y(分类标签)
+x, y = data[:, :-1], data[:, -1]
+
+# 将两类分类标签分别替换为1与-1，便于感知机处理
+y = np.array([1 if i == 1 else -1 for i in y])
+
+class Model:
+    def __init__(self):
+        # 初始化权重，特征向量长度为2，故在初始化中故将其分别赋予1的权重
+        self.w = np.zeros(len(data[0]) - 1)
+        # 初始化偏置为0
+        self.b = 0
+        # 初始化学习率为0.1
+        self.rate = 0.1
+
+    # 定义sign函数,用于判断当前点是否分类正确
+    def sign(self, x, w, b):
+        y = np.dot(w, x) + b # y = w[0]*x[0] + w[1]*x[1] + b
+        return y
+
+    def fit(self, X_train, Y_train):
+        while True:
+            wrong_count = 0  # 错误分类点计数器
+            for i in range(len(X_train)):
+                x = X_train[i]
+                y = Y_train[i]
+                print(w, x, np.dot(w, x))
+                if y * self.sign(x, self.w, self.b) <= 0:
+                    self.w = self.w + self.rate * np.dot(x,y)
+                    self.b = self.b + self.rate * y
+                    wrong_count += 1
+            if wrong_count == 0:  # 当损失函数为0时，分类结束
+                break
+        return self.w, self.b
+    
+# 实例化模型
+perceptron = Model()
+# 训练模型
+w, b = perceptron.fit(x, y)
+
+x_point = np.arange(4,7,0.5)
+y_point = -(w[0] * x_point + b) / w[1]
+plt.plot(x_point,y_point)
+# 绘制散点图
+plt.scatter(x[:50, 0], x[:50, 1], label='0')
+plt.scatter(x[50:, 0], x[50:, 1], label='1')
+# plt.plot(x, y_)
+plt.xlabel("sepal length")
+plt.ylabel("sepal width")
+plt.legend()
+plt.show()
+```
+
+![2.3](.\images\2.3.png)
